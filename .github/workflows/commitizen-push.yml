@@ -1,4 +1,4 @@
-name: Snigdha OS Commitizen Check on Push
+name: Commitizen Check on Push and Pull
 
 on:
     push:
