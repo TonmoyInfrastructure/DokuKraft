@@ -18,7 +18,24 @@ use crate::config::Config;
 * - Files: TOML, JSON, YAML, INI, RON, JSON5 and custom ones defined with Format trait
 * - Manual, programmatic override (via a .set method on the Config instance)
 */
-
+use super::DokuKraft;
+/* 
+* Documentation : https://doc.rust-lang.org/std/keyword.super.html
+* The super and self keywords can be used in the path to remove ambiguity when accessing 
+* items and to prevent unnecessary hardcoding of paths.
+* More : https://doc.rust-lang.org/rust-by-example/mod/super.html 
+*/
+use crate::anyhow;
+/* 
+* Documentation : https://docs.rs/anyhow/1.0.83/anyhow/
+* This library provides anyhow::Error, a trait object based error type for 
+* easy idiomatic error handling in Rust applications.
+*/
+use std::fs::{self, File};
+/* 
+* Documentation : https://doc.rust-lang.org/std/fs/struct.File.html
+* An object providing access to an open file on the filesystem.
+*/
 
 
 pub struct DocGenerator{
@@ -62,6 +79,53 @@ impl DocGenerator {
     pub fn duplicate_theme(&mut self, duplicate: bool) -> &mut DocGenerator {
         self.duplicate_theme = duplicate;
         self
+    }
+
+    pub fn build(&self) -> Result<DokuKraft> {
+        info!(">> Initiating A New DokuKraft With Stub...");
+        self.make_dir_struct().context("Failed To Create Directory Strcture!")?;
+        // It calls context on the result of make_dir_struct and chains it with the ? operator to propagate errors if any.
+        self.gen_stub_files().context("Failed To Create Stub Files!")?;
+        if self.generate_gitign {
+            self.gen_gitign().context("Failed To Create .gitignore!")
+        }
+    }
+
+    fn gen_gitign(&self) -> Result<()> {
+        debug!("Generating .gitignore");
+        let mut f = File::create(self.root.join(".gitignore"))?;
+        writeln!(f, "{}", self.config.build.build_dir.display())?;
+        OK(())
+    }
+
+    fn dup_theme(&self) -> Result<()> {
+        debug!("Duplicating Theme");
+        let html_config = self.config.html_config().unwrap_or_default();
+        let themedir = html_config.theme_dir(&self.root);
+        if !themedir.exists(){
+            println!("{} does not exist, creating directory", themedir.display());
+            fs::create_dir(&themedir)?;
+        }
+        let mut index = File::create(themedir.join("index.hbs"))?;
+        index.write_all(theme::index)?;
+        let stydir = themedir.join("css");
+        if !stydir.exists() {
+            fs::create_dir(&stydir)?;
+        }
+        let mut common_css = File::create(stydir.join("common.css"))?;
+        common_css.write_all(theme::COMMON_CSS)?;
+        let mut chrome_css = File::create(stydir.join("chrome.css"))?;
+        chrome_css.write_all(theme::CHROME_CSS)?;
+        if html_config.print.enable {
+            let mut print_css = File::create(stydir.join("print.css"))?;
+            print_css.write_all(theme::PRINT_CSS)?;
+        }
+        let mut variables_css = File::create(stydir.join("variables.css"))?;
+        variables_css.write_all(theme::VARIABLES_CSS)?;
+        let mut favicon = File::create(themedir.join("favicon.png"))?;
+        favicon.write_all(theme::FAVICON_PNG)?;
+        let mut favicon = File::create(themedir.join("favicon.svg"))?;
+        favicon.write_all(theme::FAVICON_SVG)?;
     }
 
 }
