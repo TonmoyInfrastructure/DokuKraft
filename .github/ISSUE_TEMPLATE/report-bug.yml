@@ -1,6 +1,8 @@
 name: Report Bug 🐛 
 description: Help us to build better products for you.
-labels: [bug, 'status: needs triage']
+labels: [bug, 'triage']
+assignees:
+  - eshanized
 body:
   - type: markdown
     attributes:
