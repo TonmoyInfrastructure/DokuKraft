@@ -44,6 +44,8 @@ use log::{info, debug, trace};
 * of those libraries can choose the logging implementation that is most suitable for its use case.
 */
 use crate::errors::*;
+use crate::themes;
+use crate::utils::fs::write_file;
 
 
 #[derive(Debug, Clone, PartialEq)]
@@ -102,10 +104,13 @@ impl DocGenerator {
             self.dup_theme().context("Unable to duplicate theme")?;
         }
         self.docgen_toml()?;
+        // control flow construct: loads some document and configuration data.
         match DokuKraft::load(&self.root) {
-            Ok(docgen) => Ok(docgen),
+            Ok(docgen) => Ok(docgen), // matches the case where the result of DokuKraft::load(&self.root) is Ok, meaning the operation was successful.
+            // Matches the case where the result of DokuKraft::load(&self.root) is Err, meaning there was an error during the operation.
             Err(e) => {
                 error!("{}", e);
+                // generates a panic, which is an unrecoverable error
                 panic!("Everything should work fine. If you have seen the message, it is a bug! Report on GitHub.");
             }
         }
@@ -144,6 +149,7 @@ impl DocGenerator {
         Ok(())
     }
 
+    // Generates .gitignore file.
     fn gen_gitign(&self) -> Result<()> {
         debug!("Generating .gitignore"); // logs a debug message indicating that the process of generating the .gitignore file is starting
         let mut f = File::create(self.root.join(".gitignore"))?; // a mutable variable f is created and assigned the result of opening a file named .gitignore within the directory
@@ -151,6 +157,7 @@ impl DocGenerator {
         OK(())
     }
 
+    // Geberates `docgen.toml`
     fn docgen_toml(&self) -> Result<()> {
         debug!("Writing docgen.toml"); // logs a debug message indicating that the process of writing docgen.toml is starting
         let doc_gen_toml = self.root.join("docgen.toml"); // Constructs a path to the file docgen.toml by joining the root directory 
@@ -163,7 +170,7 @@ impl DocGenerator {
         Ok(())
     }
 
-    // Duplicate theme for your project.
+    // Duplicate theme for the project.
     fn dup_theme(&self) -> Result<()> {
         debug!("Duplicating Theme"); // Logs a debug message indicating that the theme duplication process is starting
         let html_config = self.config.html_config().unwrap_or_default(); // Retrieves HTML configuration settings from the config field of the struct instance (self)
@@ -192,7 +199,25 @@ impl DocGenerator {
         favicon.write_all(theme::FAVICON_PNG)?;
         let mut favicon = File::create(themedir.join("favicon.svg"))?;
         favicon.write_all(theme::FAVICON_SVG)?;
+        let mut js = File::create(themedir.join("docgen.js"))?;
+        js.write_all(theme::JS)?;
+        let mut highlight_css = File::create(themedir.join("highlight.css"))?;
+        highlight_css.write_all(theme::HIGHLIGHT_CSS)?;
+        let mut highlight_js = File::create(themedir.join("highlight.js"))?;
+        highlight_js.write_all(theme::HIGHLIGHT_JS)?;
+        write_file(&themedir.join("fonts"), "fonts.css", theme::fonts::CSS)?;
+        for (filename, contents) in theme::fonts::LICENSES {
+            write_file(&themedir, filename, contents)?;
+        }
+        for (filename, contents) in theme::fonts::OPEN_SANS.iter() {
+            write_file(&themedir, filename, contents)?;
+        }
+        write_file(
+            &themedir,
+            theme::fonts::SOURCE_CODE_PRO.0,
+            theme::fonts::SOURCE_CODE_PRO.1,
+        )?;
+        Ok(())
     }
-
 
 }
