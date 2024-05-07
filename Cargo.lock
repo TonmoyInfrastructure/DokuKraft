@@ -12,6 +12,7 @@ dependencies = [
  "errors",
  "fs",
  "utils",
+ "with-context",
 ]
 
 [[package]]
@@ -823,6 +824,12 @@ checksum = "c3c52e9c97a68071b23e836c9380edae937f17b9c4667bd021973efc689f618d"
 dependencies = [
  "memchr",
 ]
+
+[[package]]
+name = "with-context"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d4e70a8b64311a7ce488a22e0ee430fad83be0fd58111f5ee5d826f0015221f"
 
 [[package]]
 name = "yaml-rust"
