@@ -25,7 +25,7 @@ use super::DokuKraft;
 * items and to prevent unnecessary hardcoding of paths.
 * More : https://doc.rust-lang.org/rust-by-example/mod/super.html 
 */
-use crate::anyhow;
+use crate::anyhow::Error;
 /* 
 * Documentation : https://docs.rs/anyhow/1.0.83/anyhow/
 * This library provides anyhow::Error, a trait object based error type for 
@@ -36,13 +36,15 @@ use std::fs::{self, File};
 * Documentation : https://doc.rust-lang.org/std/fs/struct.File.html
 * An object providing access to an open file on the filesystem.
 */
-use log::{info, debug};
+use log::{info, debug, trace};
 /* 
 * Documentation : https://docs.rs/log/latest/log/
 * The log crate provides a single logging API that abstracts over the actual logging 
 * implementation. Libraries can use the logging API provided by this crate, and the consumer 
 * of those libraries can choose the logging implementation that is most suitable for its use case.
 */
+use crate::errors::*;
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DocGenerator{
@@ -98,11 +100,29 @@ impl DocGenerator {
         Ok(()) // Success with no specific value returned
     }
 
+    // Generating stub files for a project if they don't already exist
     fn gen_stub_files(&self) -> Result<()> {
         debug!("Creating demo instance");
-        let src_dir = self.root.join(&self.config.docgen.src);
-        let summ = src_dir.join("SUMMARY.md");
+        let src_dir = self.root.join(&self.config.docgen.src); // Constructs the path for the source directory (src_dir) 
+        let introduction = src_dir.join("INTRODUCTION.md"); // Constructs the path for the source directory (src_dir) and the introduction file (introduction).
+        // checks if the introduction file doesn't exist
+        if !introduction.exists() {
+            trace!("No introduction found, creating stub introduction and introduction.md.");
+            let mut introduction_file = File::create(&introduction)
+                .with_context(|| "Unable to create SUMMARY.md")?;
+            writeln!(introduction_file, "# Introduction\n")?;
+            writeln!(introduction_file, "- [INTRODUCTION](./introduction.md)")?;
+            let release_note = src_dir.join("introduction.md");
+            let mut release_note_file = File::create(&release_note)
+                .with_context(|| "Unable to create release_note.md")?;
+            writeln!(release_note_file, "# Release Note")?;
+        } else {
+            trace!("Existing introduction found, no need to create stub files.");
+        }
+    
+        Ok(())
     }
+    
 
     pub fn build(&self) -> Result<DokuKraft> {
         info!(">> Initiating A New DokuKraft With Stub...");
@@ -112,13 +132,36 @@ impl DocGenerator {
         if self.generate_gitign {
             self.gen_gitign().context("Failed To Create .gitignore!")
         }
+        if self.duplicate_theme {
+            self.dup_theme().context("Unable to duplicate theme")?;
+        }
+        self.docgen_toml()?;
+        match DokuKraft::load(&self.root) {
+            Ok(docgen) => Ok(docgen),
+            Err(e) => {
+                error!("{}", e);
+                panic!("Everything should work fine. If you have seen the message, it is a bug! Report on GitHub.");
+            }
+        }
     }
 
     fn gen_gitign(&self) -> Result<()> {
-        debug!("Generating .gitignore");
-        let mut f = File::create(self.root.join(".gitignore"))?;
-        writeln!(f, "{}", self.config.build.build_dir.display())?;
+        debug!("Generating .gitignore"); // logs a debug message indicating that the process of generating the .gitignore file is starting
+        let mut f = File::create(self.root.join(".gitignore"))?; // a mutable variable f is created and assigned the result of opening a file named .gitignore within the directory
+        writeln!(f, "{}", self.config.build.build_dir.display())?; //path to the build directory
         OK(())
+    }
+
+    fn docgen_toml(&self) -> Result<()> {
+        debug!("Writing docgen.toml"); // logs a debug message indicating that the process of writing docgen.toml is starting
+        let doc_gen_toml = self.root.join("docgen.toml"); // Constructs a path to the file docgen.toml by joining the root directory 
+        let cfg = toml::to_vec(&self.config).context("Unable to serialize the config")?; // Serialized into a TOML-encoded byte vector (Vec<u8>) using the toml::to_vec function.
+        // create a new file named docgen.toml
+        File::create(doc_gen_toml)
+            .context("Couldn't create docgen.toml")?
+            .write_all(&cfg) // After successfully creating the file, this line writes the contents of the cfg byte vector (which contains the serialized configuration) to the file.
+            .context("Unable to write config to docgen.toml")?;
+        Ok(())
     }
 
     // Duplicate theme for your project.

@@ -11,6 +11,7 @@ dependencies = [
  "config",
  "errors",
  "fs",
+ "utils",
 ]
 
 [[package]]
@@ -170,6 +171,12 @@ name = "colorchoice"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b6a852b24ab71dffc585bcb46eaf7959d175cb865a7152e35b348d1b2960422"
+
+[[package]]
+name = "commandext"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "931dd7114e3495c5d7346fd85cdb212c219f4ba2e307458df223b1e1e967e306"
 
 [[package]]
 name = "config"
@@ -713,6 +720,15 @@ name = "utf8parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
+
+[[package]]
+name = "utils"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d3342045b8ce979cde9bf4d920434b5113ec753ec0215c1ebe2edebb368651a"
+dependencies = [
+ "commandext",
+]
 
 [[package]]
 name = "version_check"
