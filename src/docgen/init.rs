@@ -36,7 +36,13 @@ use std::fs::{self, File};
 * Documentation : https://doc.rust-lang.org/std/fs/struct.File.html
 * An object providing access to an open file on the filesystem.
 */
-
+use log::{info, debug};
+/* 
+* Documentation : https://docs.rs/log/latest/log/
+* The log crate provides a single logging API that abstracts over the actual logging 
+* implementation. Libraries can use the logging API provided by this crate, and the consumer 
+* of those libraries can choose the logging implementation that is most suitable for its use case.
+*/
 
 pub struct DocGenerator{
     root: PathBuf, // Provided by the Rust standard library for handling file system paths.
@@ -80,6 +86,22 @@ impl DocGenerator {
         self.duplicate_theme = duplicate;
         self
     }
+    // Essentially sets up the directory structure for a project by creating necessary directories like the root directory, source directory, and build directory.
+    fn make_dir_struct(&self) -> Result<DokuKraft> {
+        debug!("Creating Directory Structure..."); //logs a debug message indicating that the directory structure creation process is starting
+        fs::create_dir_all(&self.root)?; // Attempts to create a directory at the path specified by self.root
+        let src = self.root.join(&self.config.docgen.src); // constructs the path for the source directory based on the project's root directory
+        fs::create_dir_all(src)?; // create the source directory specified by src
+        let build = self.root.join(&self.config.build.build_dir); // constructs the path for the build directory based on the project's root directory (self.root)
+        fs::create_dir_all(build)?; // create the build directory specified by build
+        Ok(()) // Success with no specific value returned
+    }
+
+    fn gen_stub_files(&self) -> Result<()> {
+        debug!("Creating demo instance");
+        let src_dir = self.root.join(&self.config.docgen.src);
+        let summ = src_dir.join("SUMMARY.md");
+    }
 
     pub fn build(&self) -> Result<DokuKraft> {
         info!(">> Initiating A New DokuKraft With Stub...");
@@ -98,13 +120,14 @@ impl DocGenerator {
         OK(())
     }
 
+    // Duplicate theme for your project.
     fn dup_theme(&self) -> Result<()> {
-        debug!("Duplicating Theme");
-        let html_config = self.config.html_config().unwrap_or_default();
-        let themedir = html_config.theme_dir(&self.root);
-        if !themedir.exists(){
-            println!("{} does not exist, creating directory", themedir.display());
-            fs::create_dir(&themedir)?;
+        debug!("Duplicating Theme"); // Logs a debug message indicating that the theme duplication process is starting
+        let html_config = self.config.html_config().unwrap_or_default(); // Retrieves HTML configuration settings from the config field of the struct instance (self)
+        let themedir = html_config.theme_dir(&self.root); // Constructs the directory path for the theme based on the HTML configuration and the project's root directory.
+        if !themedir.exists(){ // Checks if the theme directory does not exist
+            println!("{} does not exist, creating directory", themedir.display()); // It uses themedir.display() to obtain a formatted display path of the directory.
+            fs::create_dir(&themedir)?; // Creates the theme directory using the create_dir() function provided by the fs module from the standard library.
         }
         let mut index = File::create(themedir.join("index.hbs"))?;
         index.write_all(theme::index)?;
@@ -127,5 +150,6 @@ impl DocGenerator {
         let mut favicon = File::create(themedir.join("favicon.svg"))?;
         favicon.write_all(theme::FAVICON_SVG)?;
     }
+
 
 }
