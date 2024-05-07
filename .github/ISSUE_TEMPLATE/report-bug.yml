@@ -1,0 +1,7 @@
+name: Report Bug 🐛
+description: Help us to build better products for you..
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for filing a  bug report 😄!
