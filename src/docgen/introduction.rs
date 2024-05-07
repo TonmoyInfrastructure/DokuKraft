@@ -8,6 +8,7 @@ pub fn parse_introduction(introduction: &str) -> Result<Introduction> {
 }
 
 // structured introduction typically found in documents
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Introduction {
     pub title: Option<String>, //represents the title of the introduction
     pub prefix_sections: Vec<DocItem>, //contains the sections that come before any numbered sections in the introduction
@@ -53,3 +54,39 @@ impl Default for Link {
         }
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum DocItem {
+    Link(Link), //represents a link within the document
+    Separator, //represents a separator within the document
+    PartTitle(String), //represents a title for a part or section within the document
+}
+
+impl DocItem {
+    // returns a mutable reference to a Link if self is a DocItem::Link, otherwise it returns None.
+    fn conf_link_mut(&mut self) -> Option<&mut Link> {
+        //starts a pattern match on self
+        match *self {
+            DocItem::Link(ref mut l) => Some(l), //extracts a mutable reference to the Link contained within self (represented by ref mut l) and returns it wrapped in Some.
+            _ => None, //default branch of the match. If self is not a DocItem::Link, it returns None.
+        }
+    }
+}
+
+//implements the From trait for converting from a Link into a DocItem
+//implementing the From trait for converting from a Link into a DocItem.
+impl From<Link> for DocItem {
+    //defines the implementation of the from associated function for the From trait. It takes a Link (named other) as input and returns a DocItem.
+    fn from(other: Link) -> DocItem {
+        DocItem::Link(other) //creates and returns a DocItem::Link variant, wrapping the provided Link instance (other).
+    }
+}
+
+//struct represents a parser for parsing introductions from Markdown source text
+struct IntroductionParser<'a> {
+    src: &'a str, //holds a reference (&'a str) to the Markdown source text that is being parsed
+    stream: pulldown_cmark::OffsetIter<'a, DefaultBrokenLinkCallback>, //parameterized with the same lifetime 'a, ensuring that the events iterator doesn't outlive the Markdown source text.
+    offset: usize, // represents the current position of the parser within the Markdown source text
+    back: Option<Event<'a>>, //an optional event that allows the parser to store an event temporarily
+}
+
