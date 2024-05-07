@@ -44,6 +44,7 @@ use log::{info, debug};
 * of those libraries can choose the logging implementation that is most suitable for its use case.
 */
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct DocGenerator{
     root: PathBuf, // Provided by the Rust standard library for handling file system paths.
     generate_gitign: bool, // A boolean value indicating whether to generate a .gitignore file.
