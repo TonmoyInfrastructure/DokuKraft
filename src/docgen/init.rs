@@ -89,6 +89,27 @@ impl DocGenerator {
         self.duplicate_theme = duplicate;
         self
     }
+
+    pub fn build(&self) -> Result<DokuKraft> {
+        info!(">> Initiating A New DokuKraft With Stub...");
+        self.make_dir_struct().context("Failed To Create Directory Strcture!")?;
+        // It calls context on the result of make_dir_struct and chains it with the ? operator to propagate errors if any.
+        self.gen_stub_files().context("Failed To Create Stub Files!")?;
+        if self.generate_gitign {
+            self.gen_gitign().context("Failed To Create .gitignore!")
+        }
+        if self.duplicate_theme {
+            self.dup_theme().context("Unable to duplicate theme")?;
+        }
+        self.docgen_toml()?;
+        match DokuKraft::load(&self.root) {
+            Ok(docgen) => Ok(docgen),
+            Err(e) => {
+                error!("{}", e);
+                panic!("Everything should work fine. If you have seen the message, it is a bug! Report on GitHub.");
+            }
+        }
+    }
     // Essentially sets up the directory structure for a project by creating necessary directories like the root directory, source directory, and build directory.
     fn make_dir_struct(&self) -> Result<DokuKraft> {
         debug!("Creating Directory Structure..."); //logs a debug message indicating that the directory structure creation process is starting
@@ -121,28 +142,6 @@ impl DocGenerator {
         }
     
         Ok(())
-    }
-    
-
-    pub fn build(&self) -> Result<DokuKraft> {
-        info!(">> Initiating A New DokuKraft With Stub...");
-        self.make_dir_struct().context("Failed To Create Directory Strcture!")?;
-        // It calls context on the result of make_dir_struct and chains it with the ? operator to propagate errors if any.
-        self.gen_stub_files().context("Failed To Create Stub Files!")?;
-        if self.generate_gitign {
-            self.gen_gitign().context("Failed To Create .gitignore!")
-        }
-        if self.duplicate_theme {
-            self.dup_theme().context("Unable to duplicate theme")?;
-        }
-        self.docgen_toml()?;
-        match DokuKraft::load(&self.root) {
-            Ok(docgen) => Ok(docgen),
-            Err(e) => {
-                error!("{}", e);
-                panic!("Everything should work fine. If you have seen the message, it is a bug! Report on GitHub.");
-            }
-        }
     }
 
     fn gen_gitign(&self) -> Result<()> {
