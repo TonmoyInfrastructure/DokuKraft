@@ -9,5 +9,6 @@ clap = { version = "4.5.4", features = ["derive"] }
 config = "0.14.0"
 errors = "0.0.0"
 fs = "0.0.5"
+preprocess = "0.4.1"
 utils = "0.0.3"
 with-context = "0.3.0"
