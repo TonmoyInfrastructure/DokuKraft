@@ -226,4 +226,45 @@ impl<'a> IntroductionParser<'a> {
         //returns the vector items wrapped in Ok, indicating that the parsing was successful.
         Ok(items)
     }
+
+    //returns a Result containing a vector of DocItems or an error.
+    fn parse_parts(&mut self) -> Result<Vec<DocItem>> {
+        //declare mutable variables: parts, which is an empty vector to store parsed document items; 
+        //root_number, which initializes a SectionNumber struct with its default values; and root_items, an integer initialized to 0.
+        let mut parts = vec![];
+        let mut root_number = SectionNumber::default();
+        let mut root_items = 0;
+    
+        loop {
+            //retrieves the next event in the document.
+            let title = match self.next_event() {
+                //If the event is the start of a paragraph, the loop is terminated with a break statement.
+                Some(Event::Start(Tag::Paragraph)) => break,
+                //If the event is the start of an H1 heading, it collects all events until the end of the heading, 
+                //converts them into a string, and assigns it to title. This stringified title is then wrapped in Some.
+                Some(Event::Start(Tag::Heading { level: HeadingLevel::H1, .. })) => {
+                    debug!("Found a h1 in the INTRODUCTION");
+                    let tags = collect_events!(self.stream, end TagEnd::Heading(HeadingLevel::H1));
+                    Some(stringify_events(tags))
+                }
+                //it backs up the event stream by one step and assigns None to title
+                Some(ev) => { self.back(ev); None }
+                //the loop is terminated with a break statement.
+                None => break,
+            };
+            //parses numbered sections using the parse_numbered method, which updates root_items and root_number accordingly.
+            //It uses the with_context method to provide context for any parsing errors that occur.
+            let numbered_sections = self.parse_numbered(&mut root_items, &mut root_number)
+                .with_context(|| "There was an error parsing the numbered chapters")?;
+            //If a title is present (Some), it pushes a DocItem::PartTitle containing the title into the parts vector.
+            if let Some(title) = title {
+                parts.push(DocItem::PartTitle(title));
+            }
+            ////extends the parts vector with the numbered_sections vector.
+            parts.extend(numbered_sections);
+        }
+        //returns parts wrapped in Ok, indicating that the parsing was successful
+        Ok(parts)
+    }
+    
 }
