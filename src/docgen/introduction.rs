@@ -370,4 +370,78 @@ impl<'a> IntroductionParser<'a> {
         //this event can later be retrieved when needed to rewind the parser's state.
         self.back = Some(ev);
     }
+
+    //tries to get the next event from self.back, and if it's not there, it tries to get it from self.stream. 
+    //it then updates the offset accordingly and returns the next event.
+    fn next_event(&mut self) -> Option<Event<'a>> {
+        //calls the take method on self.back. self.back is presumably an Option<Event>
+        //take replaces the current value of self.back with None, returning the previous value
+        //it moves the value out of self.back temporarily and leaves self.back as None
+        let next = self.back.take().or_else(|| {
+            //retrieves the next event
+            //self.stream is an iterator and some object that implements the Iterator trait.
+            self.stream.next().map(|(ev, range)| {
+                self.offset = range.start;
+                ev
+            })
+        });
+        //line logs the value of next using the trace! macro
+        trace!("Next event: {:?}", next);
+        //returns the value of next. Since next is an Option, it will either return Some(Event) if there is a next event, or None if there are no more events.
+        next
+    }
+    fn parse_nested_numbered(&mut self, parent: &SectionNumber) -> Result<Vec<DocItem>> {
+        //logs a debug message using the debug! macro. 
+        //it's logging the level at which numbered sections are being parsed, using the value of parent.
+        debug!("Parsing numbered sections at level {}", parent);
+        //initializes a mutable vector named items, which will hold the parsed DocItem objects.
+        let mut items = Vec::new();
+
+        loop {
+            //calls the next_event method on self, fetching the next event from some source. 
+            //it then matches on the result of this method call.
+            match self.next_event() {
+                //checks if the next event is the start of an item (<li> tag in HTML, for example). 
+                //if it is, it proceeds with parsing the item.
+                Some(Event::Start(Tag::Item)) => {
+                    //start of an item, it calls the parse_nested_item method on self to parse the item, passing parent and the current length of items
+                    //pushes the parsed item into the items vector.
+                    let item = self.parse_nested_item(parent, items.len())?;
+                    items.push(item);
+                }
+                //checks if the next event is the start of a list. 
+                //if it is, it proceeds with parsing the nested numbered sections.
+                Some(Event::Start(Tag::List(..))) => {
+                    //If items is empty, it continues to the next iteration of the loop without doing anything. 
+                    //this means skipping processing if the list is empty.
+                    if items.is_empty() {
+                        continue;
+                    }
+                    ///calls the get_last_link function, passing a mutable reference to items.
+                    /// retrieves the last item from items and returns it along with its index
+                    let (_, last_item) = get_last_link(&mut items)?;
+                    //retrieves the number of the last item. It assumes that all numbered sections have numbers, so it panics if number is None.
+                    let last_item_number = last_item
+                        .number
+                        .as_ref()
+                        .expect("All numbered sections have numbers");
+                    //recursively calls parse_nested_numbered, passing the number of the last item as the parent, to parse nested numbered chapters. 
+                    //it then assigns the result to sub_items.
+                    let sub_items = self.parse_nested_numbered(last_item_number)?;
+                    //sets the nested_items field of the last item to the parsed sub_items.
+                    last_item.nested_items = sub_items;
+                }
+                //checks if the next event is the end of the list. 
+                //if it is, it breaks out of the loop, indicating that the parsing of nested numbered chapters is complete.
+                Some(Event::End(TagEnd::List(..))) => break,
+                //handles any other type of event. 
+                //it doesn't perform any action for events other than those specifically handled above.
+                Some(_) => {}
+                //breaks out of the loop
+                None => break,
+            }
+        }
+        //returns items wrapped in a Result::Ok, indicating that the parsing was successful.
+        Ok(items)
+    }
 }
