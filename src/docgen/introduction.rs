@@ -50,7 +50,7 @@ impl Default for Link {
             name: String::new(), //creates an empty String and assigns it to the name field.
             location: Some(PathBuf::new()), //creates an empty PathBuf and wraps it in Some(...) to represent an optional location.
             number: None, //initializes the number field to None.
-            nested_items: Vec::new(), //initializes the nested_items field as an empty vector.
+            nst_itms: Vec::new(), //initializes the nested_items field as an empty vector.
         }
     }
 }
@@ -266,5 +266,108 @@ impl<'a> IntroductionParser<'a> {
         //returns parts wrapped in Ok, indicating that the parsing was successful
         Ok(parts)
     }
+    //parses a link by extracting its textual content, handling URL encoding, and creating a Link struct with the necessary information.
+    fn parse_link(&mut self, href: String) -> Link {
+        //replaces any occurrences of "%20" (URL encoding for space) with actual spaces in the href string. 
+        //this operation is done to handle encoded spaces in URLs.
+        let href = href.replace("%20", " ");
+        //collects events until the end of the link tag (</a>), using the collect_events! macro. 
+        //it reads events from the event stream until it reaches the end of the link tag.
+        let link_content = collect_events!(self.stream, end TagEnd::Link);
+        //converts the collected events into a string using the stringify_events function, resulting in the textual content of the link. 
+        //this content will be used as the name of the link.
+        let name = stringify_events(link_content);
+        //it checks if the href string is empty. If it is empty, it sets path to None, indicating that there is no location associated with the link.
+        //else it creates a PathBuf from the href string and sets path to Some(path), indicating the location of the link.
+        let path = if href.is_empty() {
+            None
+        } else {
+            Some(PathBuf::from(href))
+        };
+        //it constructs and returns a Link struct with the name of the link (name), its location (path), number set to None, and an empty vector nst_itms.
+        Link {
+            name,
+            location: path,
+            number: None,
+            nst_itms: Vec::new(),
+        }
+    }
+
+    fn parse_numbered(
+        &mut self,
+        root_items: &mut u32,
+        root_number: &mut SectionNumber,
+    ) -> Result<Vec<DocItem>> {
+        //initializes an empty vector items to store parsed document items and a boolean flag first to track whether it's the first iteration of the loop.
+        let mut items = Vec::new();
+        let mut first = true;
+        //starts an infinite loop to iterate over events until explicitly broken.
+        loop {
+            //gets the next event in the document stream and matches on it.
+            match self.next_event() {
+                //if the event is the start of a paragraph and it's not the first paragraph encountered (indicating the end of the section), 
+                //it backs up the event stream by one step and breaks the loop.
+                Some(ev @ Event::Start(Tag::Paragraph)) => {
+                    if !first {
+                        self.back(ev);
+                        break;
+                    }
+                }
+                //If the event is the start of a top-level heading (H1), 
+                //it backs up the event stream and breaks the loop, indicating the end of the section.
+                Some(
+                    ev @ Event::Start(Tag::Heading {
+                        level: HeadingLevel::H1,
+                        ..
+                    }),
+                ) => {
+                    self.back(ev);
+                    break;
+                }
+                //If the event is the start of a list, it backs up the event stream, parses the nested numbered items, updates their section numbers, and appends them to the items vector.
+                Some(ev @ Event::Start(Tag::List(..))) => {
+                    self.back(ev);
+                    let mut bunch_of_items = self.parse_nested_numbered(root_number)?;
+                    update_section_numbers(&mut bunch_of_items, 0, *root_items);
+                    *root_items += bunch_of_items.len() as u32;
+                    items.extend(bunch_of_items);
+                }
+                //If the event is the start of any other tag, it skips the contents of that tag until reaching its end tag.
+                Some(Event::Start(other_tag)) => {
+                    trace!("Skipping contents of {:?}", other_tag);
+                    while let Some(event) = self.next_event() {
+                        if event == Event::End(other_tag.clone().into()) {
+                            break;
+                        }
+                    }
+                }
+                //If the event is a horizontal rule, it adds a separator to the items vector.
+                Some(Event::Rule) => {
+                    items.push(DocItem::Separator);
+                }
+                //For any other type of event, it does nothing.
+                Some(_) => {}
+                //If there are no more events, it breaks the loop.
+                None => {
+                    break;
+                }
+            }
+            //It sets first to false after the first iteration of the loop.
+            first = false;
+        }
+        //it returns the vector of parsed items wrapped in Ok, indicating successful parsing.
+        Ok(items)
+    }
     
+    //for backing up an event in the parser's state, ensuring that only one event is backed up at a time, and logging the action for debugging purposes.
+    fn back(&mut self, ev: Event<'a>) {
+        //asserts that the back field of the struct (or whatever self is referring to) is currently None.
+        //this assertion ensures that there is no event already stored for backing up. If there is, it will panic.
+        assert!(self.back.is_none());
+        //logs a trace message, indicating that an event is being backed up. It logs the backed-up event ev.
+        trace!("Back: {:?}", ev);
+        //sets the back field of the struct (or whatever self is referring to) to Some(ev), storing the event for backing up
+        //this event can later be retrieved when needed to rewind the parser's state.
+        self.back = Some(ev);
+    }
 }
