@@ -444,4 +444,98 @@ impl<'a> IntroductionParser<'a> {
         //returns items wrapped in a Result::Ok, indicating that the parsing was successful.
         Ok(items)
     }
+    fn parse_nested_item(
+        &mut self,
+        parent: &SectionNumber,
+        num_existing_items: usize,
+    ) -> Result<DocItem> {
+        loop {
+            //calls the next_event method on self, presumably fetching the next event from some source
+            match self.next_event() {
+                //checks if the next event is the start of a paragraph. 
+                //if it is, it continues to the next iteration of the loop, effectively skipping the paragraph.
+                Some(Event::Start(Tag::Paragraph)) => continue,
+                //checks if the next event is the start of a link. If it is, it proceeds with parsing the link.
+                Some(Event::Start(Tag::Link { dest_url, .. })) => {
+                    //calls the parse_link method on self, passing the destination URL of the link as a string. 
+                    //this presumably parses the link information and returns a Link object.
+                    let mut link = self.parse_link(dest_url.to_string());
+                    //clones the parent section number and appends num_existing_items + 1 to it. 
+                    //this represents the number of the current item within its parent.
+                    let mut number = parent.clone();
+                    number.0.push(num_existing_items as u32 + 1);
+                    //logs a trace message using the trace! macro, indicating the details of the found sections, including its number, name, and location.
+                    trace!(
+                        "Found section: {} {} ({})",
+                        number,
+                        link.name,
+                        link.location
+                            .as_ref()
+                            .map(|p| p.to_str().unwrap_or(""))
+                            .unwrap_or("[draft]")
+                    );
+                    //sets the number field of the parsed link to the computed number. 
+                    //it returns the parsed link wrapped in a Result::Ok, indicating that parsing was successful
+                    link.number = Some(number);
+                    return Ok(DocItem::Link(link));
+                }
+                //handling an unexpected input while parsing links for nested sections.
+                other => {
+                    warn!("Expected a start of a link, actually got {:?}", other);
+                    //returning an error from function
+                    bail!(self.parse_error(
+                        "The link items for nested sections must only contain a hyperlink"
+                    ));
+                }
+            }
+        }
+    }
+    fn parse_error<D: Display>(&self, msg: D) -> Error {
+        //invokes the current_location() method on self to get the current line and column numbers in the parsed file.
+        //uses destructuring assignment to assign the values returned by current_location() to the variables line and col.
+        let (line, col) = self.current_location();
+        //constructs an error message string using a format string and the provided arguments.
+        anyhow::anyhow!(
+            //the format string, {} are placeholders for the arguments passed after the format string. 
+            //here, {} will be replaced by the values of line, col, and msg respectively.
+            "failed to parse INTRODUCTION.md line {}, column {}: {}",
+            line,
+            col,
+            msg
+        )
+    }
+    //returns an Option<String>, indicating that it may return either Some(String) containing the parsed title, or None if no title is found.
+    fn parse_title(&mut self) -> Option<String> {
+        loop {
+            //calls the next_event method on self, which presumably retrieves the next event in some kind of event stream.
+            //matches on the result of next_event.
+            match self.next_event() {
+                //match pattern matches if the next event is the start of an <h1> heading.
+                //uses pattern matching to extract the heading level and other details from the Tag::Heading variant of the Event.
+                Some(Event::Start(Tag::Heading {
+                    level: HeadingLevel::H1,
+                    ..
+                })) => {
+                    //logs a debug message indicating that an <h1> heading was found in the introduction.
+                    debug!("Found a h1 in the INTRODUCTION");
+                    //collects events until the end of the <h1> heading.
+                    //use a macro collect_events! to collect events from self.stream until a condition is met.
+                    let tags = collect_events!(self.stream, end TagEnd::Heading(HeadingLevel::H1));
+                    //returns Some(String) containing the text of the parsed title.
+                    return Some(stringify_events(tags));
+                }
+                //match pattern match on HTML-related events.
+                //ignored in this context, as they don't affect the title parsing.
+                Some(Event::Html(_) | Event::InlineHtml(_))
+                | Some(Event::Start(Tag::HtmlBlock) | Event::End(TagEnd::HtmlBlock)) => {}
+                //backs up one event using the back method on self, presumably to reprocess the event later.
+                Some(ev) => {
+                    self.back(ev);
+                    return None;
+                }
+                // handles the case where self.next_event() returns None, indicating the end of the event stream.
+                _ => return None,
+            }
+        }
+    }
 }
