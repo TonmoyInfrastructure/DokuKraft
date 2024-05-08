@@ -90,3 +90,40 @@ struct IntroductionParser<'a> {
     back: Option<Event<'a>>, //an optional event that allows the parser to store an event temporarily
 }
 
+//simplify the process of collecting Markdown events from a stream until a certain delimiter is encountered.
+macro_rules! collect_events { //macro named collect_events.
+    //expects an expression $stream representing the event stream and a pattern $delimiter representing the starting delimiter. 
+    ($stream:expr,start $delimiter:pat) => {
+        //recursively calls collect_events! with the given stream and the pattern Event::Start($delimiter).
+        collect_events!($stream, Event::Start($delimiter))
+    };
+    //expects to encounter an event that matches Event::End($delimiter).
+    ($stream:expr,end $delimiter:pat) => {
+        collect_events!($stream, Event::End($delimiter)) //recursively calls collect_events! with the given stream and the pattern Event::End($delimiter).
+    };
+    //default pattern. It expects any other pattern.
+    ($stream:expr, $delimiter:pat) => {{
+        let mut events = Vec::new(); //initializes an empty vector events to store collected events.
+        //continuously fetches the next event from the stream and maps it to get only the event part, discarding the range.
+        loop {
+            let event = $stream.next().map(|(ev, _range)| ev);
+            trace!("Next event: {:?}", event); //logs the next event for debugging purposes.
+            //If the next event matches the delimiter, the loop breaks, indicating that all events have been collected until this delimiter.
+            match event {
+                Some($delimiter) => break,
+                Some(other) => events.push(other), //If the event is not a delimiter, it's pushed into the events vector.
+                //If there are no more events in the stream, it logs a message and breaks the loop.
+                None => {
+                    debug!(
+                        "Reached end of stream without finding the closing pattern, {}",
+                        stringify!($delimiter)
+                    );
+                    break;
+                }
+            }
+        }
+
+        events //returns the collected events vector.
+    }};
+}
+
