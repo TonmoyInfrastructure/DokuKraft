@@ -122,8 +122,108 @@ macro_rules! collect_events { //macro named collect_events.
                 }
             }
         }
-
         events //returns the collected events vector.
     }};
 }
 
+impl<'a> IntroductionParser<'a> {
+    //creates a new instance of IntroductionParser using the provided Markdown text
+    fn new(text: &'a str) -> IntroductionParser<'a> {
+        //creates a new Markdown parser using pulldown_cmark::Parser::new(text), initializing it with the provided Markdown text.
+        let pulldown_parser = pulldown_cmark::Parser::new(text).into_offset_iter();
+        //creates a new Markdown parser using pulldown_cmark::Parser::new(text), initializing it with the provided Markdown text.
+        IntroductionParser {
+            src: text,
+            stream: pulldown_parser,
+            offset: 0,
+            back: None,
+        }
+    }
+    //returns a tuple containing two usize values, representing the line and column numbers.
+    fn current_location(&self) -> (usize, usize) {
+        let previous_text = &self.src[..self.offset]; //creates a slice previous_text of the source code (self.src) up to the current offset
+        let line = previous_text.chars().filter(|&c| c == '\n').count() + 1; //counts the number of newline characters ('\n') in the previous_text slice using the chars() method to iterate over Unicode characters
+        let start_of_line = previous_text.rfind('\n').map_or(0, |pos| pos + 1); //finds the position of the last newline character ('\n') in the previous_text slice using rfind('\n')
+        let col = self.offset - start_of_line; //calculates the column number by subtracting the start of the line position (start_of_line) from the current offset (self.offset). 
+        (line, col) //creates a tuple containing the calculated line and col values and returns it
+    }
+
+    fn parse(mut self) -> Result<Introduction> {
+        let title = self.parse_title(); //invokes the parse_title method on self to parse the title of the document.
+        // Parses the prefix secions of the document by invoking the parse_affix method with true as an argument, indicating that it's parsing prefix sections. 
+        // It uses the with_context method from the Result type to add context to any potential parsing errors.
+        let prefix_sections = self
+            .parse_affix(true)
+            .with_context(|| "There was an error parsing the prefix sections")?;
+        // Parses the prefix sections of the document by invoking the parse_affix method with true as an argument, indicating that it's parsing prefix sections. 
+        // It uses the with_context method from the Result type to add context to any potential parsing errors.
+        let numbered_sections = self
+            .parse_parts()
+            .with_context(|| "There was an error parsing the numbered sections")?;
+        // Parses the suffix sections of the document by invoking the parse_affix method with false as an argument, indicating that it's parsing suffix sections. 
+        // It also adds context to any potential parsing errors.
+        let suffix_sections = self
+            .parse_affix(false)
+            .with_context(|| "There was an error parsing the suffix sections")?;
+        // Constructs and returns an Introduction instance using the parsed title, prefix sections, numbered sections, and suffix sections. 
+        // This is wrapped in Ok(...) to indicate that parsing was successful.
+        Ok(Introduction {
+            title,
+            prefix_sections,
+            numbered_sections,
+            suffix_sections,
+        })
+    }
+    
+    fn parse_affix(&mut self, is_prefix: bool) -> Result<Vec<DocItem>> {
+        // Initializes a mutable vector items of type Vec<DocItem> to store the parsed document items
+        let mut items = Vec::new();
+        // logs a debug message indicating whether the parser is currently parsing prefix or suffix items based on the value of the is_prefix parameter.
+        debug!(
+            "Parsing {} items",
+            if is_prefix { "prefix" } else { "suffix" }
+        );
+        //starts an infinite loop which will iterate until explicitly broken.
+        loop {
+            // Calls a method next_event() on self, which seems to return the next event in some kind of event stream. 
+            // It then matches on the result of this method call.
+            match self.next_event() {
+                // Matches if the event is the start of a list or the start of a top-level heading (H1). 
+                // It captures the matched event in the variable ev.
+                Some(ev @ Event::Start(Tag::List(..)))
+                | Some(
+                    ev @ Event::Start(Tag::Heading {
+                        level: HeadingLevel::H1,
+                        ..
+                    }),
+                ) => {
+                    // Checks if the items being parsed are prefixes. 
+                    // If they are, it backs up the event stream and breaks out of the loop. 
+                    // If they're suffixes, it raises an error using the bail! macro.
+                    if is_prefix {
+                        self.back(ev);
+                        break;
+                    } else {
+                        bail!(self.parse_error("Suffix sections cannot be followed by a list"));
+                    }
+                }
+                //Matches if the event is the start of a link. 
+                //It captures the destination URL of the link in the variable dest_url.
+                Some(Event::Start(Tag::Link { dest_url, .. })) => {
+                    // Parses the link using some method parse_link and stores the result in the variable link.
+                    let link = self.parse_link(dest_url.to_string());
+                    // adds the parsed link to the items vector as a DocItem::Link.
+                    items.push(DocItem::Link(link));
+                }
+                //matches if the event is a horizontal rule. It adds a separator to the items vector.
+                Some(Event::Rule) => items.push(DocItem::Separator),
+                //matches if the event is of any other type
+                Some(_) => {}
+                //matches if there are no more events in the event stream. It breaks out of the loop.
+                None => break,
+            }
+        }
+        //returns the vector items wrapped in Ok, indicating that the parsing was successful.
+        Ok(items)
+    }
+}
