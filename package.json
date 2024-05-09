@@ -1,0 +1,12 @@
+{
+  "name": "dokukraft",
+  "version": "1.0.0",
+  "description": "> Following [Commitizen Standard Commit](https://commitizen-tools.github.io/commitizen/) is mandatory in order to contribute.  - `push.sh` will only work in **ArchLinux** and **Arch based Linux Distro**.  - You can create your own upload script in case it is not working!",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
